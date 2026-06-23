@@ -1,56 +1,80 @@
 import asyncio
-from aiogram import Bot, Dispatcher, F
+import sqlite3
+from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
 
-TOKEN = "8733248197:AAGePxPmbpYze_wz7u6Spb9Kwp8iyZcGL5M"
+TOKEN = "8733248197:AAHpXAx665wAaXmD1BqJqLXrG39iP3HufgI"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# зберігаємо “лінки”
-user_links = {}
-anon_links = {}
+# --- DB ---
+conn = sqlite3.connect("bot.db")
+cursor = conn.cursor()
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    code TEXT UNIQUE
+)
+""")
+conn.commit()
+
+
+def get_or_create_code(user_id: int):
+    cursor.execute("SELECT code FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+
+    if row:
+        return row[0]
+
+    code = f"user{user_id}"
+
+    cursor.execute(
+        "INSERT INTO users (user_id, code) VALUES (?, ?)",
+        (user_id, code)
+    )
+    conn.commit()
+
+    return code
+
+
+def get_user_by_code(code: str):
+    cursor.execute("SELECT user_id FROM users WHERE code=?", (code,))
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+# --- START ---
 @dp.message(Command("start"))
 async def start(message: Message):
-    user_id = message.from_user.id
+    args = message.text.split()
 
-    if user_id not in user_links:
-        link = f"anon_{user_id}"
-        user_links[user_id] = link
-        anon_links[link] = user_id
-
-    await message.answer(
-        "привіт 💌\n"
-        "це твій анонімний бот\n\n"
-        f"твоя лінка: {user_links[user_id]}\n\n"
-        "напиши повідомлення або використовуй лінку інших"
-    )
-
-@dp.message()
-async def anon_handler(message: Message):
-    user_id = message.from_user.id
-
-    # якщо це відповідь через лінку
-    text = message.text or ""
-
-    if text.startswith("anon_"):
-        target_id = anon_links.get(text)
+    # якщо це анонімне повідомлення
+    if len(args) > 1:
+        code = args[1]
+        target_id = get_user_by_code(code)
 
         if target_id:
-            await bot.send_message(
-                target_id,
-                f"💌 анонімне повідомлення:\n\n{message.text.replace(text, '')}"
-            )
+            text = " ".join(args[2:]) or "💌 нове анонімне повідомлення"
+            await bot.send_message(target_id, f"💌 анонім:\n{text}")
             await message.answer("надіслано 💌")
-        else:
-            await message.answer("лінку не знайдено ❌")
-    else:
-        await message.answer("використай /start щоб отримати свою лінку")
+            return
+
+    # звичайний старт
+    code = get_or_create_code(message.from_user.id)
+
+    await message.answer(
+        "твій анонім-лінк 💌\n\n"
+        f"https://t.me/ihatekaddbot?start={code}\n\n"
+        "поділись нею і отримуй повідомлення"
+    )
+
 
 async def main():
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
