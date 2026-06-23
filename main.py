@@ -8,7 +8,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-TOKEN = "8733248197:AAFxI3YgHrkONY-MQkthEeF1JBa-zm-q14w"
+TOKEN = "8733248197:AAGePxPmbpYze_wz7u6Spb9Kwp8iyZcGL5M"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
